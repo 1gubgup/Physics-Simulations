@@ -1,0 +1,74 @@
+﻿#if UNITY_EDITOR
+using UnityEngine;
+using System.Collections;
+using UnityEditor;
+
+namespace Chemix.Network
+{
+    [CustomEditor(typeof(NetworkManager))]
+    public class NetworkManagerEditor : Editor
+    {
+        public override void OnInspectorGUI()
+        {
+            DrawDefaultInspector();
+            NetworkManager nm = (NetworkManager)target;
+            if (GUILayout.Button("Ping"))
+            {
+                nm.Ping();
+            }
+            if (GUILayout.Button("接口测试"))
+            {
+                nm.TestInterface();
+            }
+            if (GUILayout.Button("注册"))
+            {
+                nm.Signup();
+            }
+            if (GUILayout.Button("登陆"))
+            {
+                nm.Login();
+            }
+            if (GUILayout.Button("保存数据"))
+            {
+                nm.SaveData();
+            }
+            if (GUILayout.Button("加载所有"))
+            {
+                nm.LoadData();
+            }
+            if (GUILayout.Button("提交答卷"))
+            {
+                nm.Submit();
+            }
+            if (GUILayout.Button("统计问卷"))
+            {
+                nm.GetSubmits();
+            }
+            if (GUILayout.Button("获取场景"))
+            {
+                nm.GetScene();
+            }
+            if (GUILayout.Button("保存场景"))
+            {
+                nm.SaveScene();
+            }
+            if (GUILayout.Button("序列化测试"))
+            {
+                nm.TestSerialization();
+            }
+            if (GUILayout.Button("设置默认实验(Value)"))
+            {
+                nm.SetDefaultKey();
+            }
+            if (GUILayout.Button("获取默认实验"))
+            {
+                nm.GetDefaultKey();
+            }
+            if (GUILayout.Button("加密邀请码"))
+            {
+                nm.EncryptInvite();
+            }
+        }
+    }
+}
+#endif

@@ -1,0 +1,144 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Init
+#pragma kernel Step
+
+#define THREAD_X 8
+#define THREAD_Y 8
+
+//顶点位置
+RWStructuredBuffer<float3> positions;
+//顶点速度
+RWStructuredBuffer<float3> velocities;
+
+//x表示横向顶点数量,y表示纵向顶点数量,z = x * y
+uint3 size;
+
+//弹性系数.xyz分别对应结构弹簧、剪力弹簧、弯曲弹簧
+float3 springKs;
+
+//弹簧在松弛状态下的长度.xyz分别对应结构弹簧、剪力弹簧、弯曲弹簧
+uniform float3 restLengths;
+
+//单个顶点的质量
+uniform float mass;
+
+//单次迭代时间间隔
+float dt;
+
+//结构弹簧的4个方向
+static uint2 SpringDirs[12] = {
+    //结构力
+    {1,0},
+    {0,1},
+    {-1,0},
+    {0,-1},
+    //剪力
+    {-1,-1},
+    {-1,1},
+    {1,-1},
+    {1,1},
+    //弯矩力
+    {-2,0},
+    {2,0},
+    {0,2},
+    {0,-2},
+};
+
+
+static uint getIndex(uint2 id) {
+    return id.y * size.x + id.x;
+}
+
+static float3 getPosition(uint index) {
+    return positions[index].xyz;
+}
+
+static float3 getPosition(uint2 id) {
+    return positions[getIndex(id)].xyz;
+}
+
+static float3 getVelocity(uint index) {
+    return velocities[index];
+}
+
+
+static void setVelocity(uint index, float3 vel) {
+    velocities[index] = vel;
+}
+
+static void setPosition(uint index, float3 pos) {
+    positions[index] = pos;
+}
+
+static bool isValidateId(uint2 id) {
+    return id.x >= 0 && id.x < size.x && id.y >= 0 && id.y < size.y;
+}
+
+//弹性力计算.springType 0,1,2分别代表结构弹簧、剪力弹簧、弯曲弹簧
+static float3 getSpring(float3 p, float3 q, uint springType) {
+    float3 dp = p - q;
+    float len = length(dp);
+    float restL = restLengths[springType];
+    return dp * (springKs[springType] * (restL * rcp(len) - 1));
+}
+
+static float3 calculateF(uint2 id, float3 position, float3 velocity) {
+    uint index = getIndex(id);
+    float3 f = float3(0, 0, 0);
+    
+    //重力
+    float3 fg = float3(0, -9.8 * 20, 0) * mass;
+    f += fg;
+
+    //弹性力
+    for (uint i = 0; i < 12; i++) {
+        uint2 nId = id + SpringDirs[i];
+        uint nIndex = getIndex(nId);
+        if (isValidateId(nId)) {
+            float3 nPos = getPosition(nIndex);
+            f += getSpring(position, nPos, i / 4);
+        }
+    }
+
+    //阻尼力
+    float3 fd = -0.5 * velocity;
+    f += fd;
+
+    return f;
+}
+
+
+[numthreads(THREAD_X, THREAD_Y, 1)]
+void Init(uint3 id : SV_DispatchThreadID)
+{
+    //初始化顶点位置和速度
+    uint index = getIndex(id.xy);
+    positions[index] = float3(id.x * restLengths.x, 0, id.y * restLengths.x);
+    velocities[index] = float3(0, 0, 0);
+}
+
+[numthreads(THREAD_X, THREAD_Y, 1)]
+void Step(uint3 id : SV_DispatchThreadID)
+{
+    //固定两个顶点
+    if (id.y == 0 && (id.x == 0 || id.x == size.x - 1)) {
+        return;
+    }
+
+    uint index = getIndex(id.xy);
+
+    //计算受力和加速度
+    float3 f = calculateF(id.xy, getPosition(index), getVelocity(index));
+    float3 a = f * rcp(mass);
+
+    //更新速度
+    float3 velocity = getVelocity(index);
+    velocity = velocity + a * dt;
+    setVelocity(index, velocity);
+
+    //更新位置
+    float3 position = getPosition(index);
+    position += velocity * dt;
+    setPosition(index, position);
+}
+
